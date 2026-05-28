@@ -1,4 +1,4 @@
-const { getReservationsForDate } = require('../lib/ical');
+const { getReservationsForDate, ymdInTz } = require('../lib/ical');
 const { getAccessToken, generateCode } = require('../lib/ttlock');
 // const { log } = require('../lib/logger'); // TODO: włącz gdy Supabase gotowy
 const log = async () => {};
@@ -8,11 +8,13 @@ const APARTMENTS = [
     name: () => process.env.APT1_NAME || 'Mieszkanie 1',
     icalUrl: () => process.env.ICAL_URL_APT1,
     lockId: () => process.env.APT1_LOCK_ID,
+    timezone: () => process.env.APT1_TIMEZONE || 'Europe/Warsaw',
   },
   {
     name: () => process.env.APT2_NAME || 'Mieszkanie 2',
     icalUrl: () => process.env.ICAL_URL_APT2,
     lockId: () => process.env.APT2_LOCK_ID,
+    timezone: () => process.env.APT2_TIMEZONE || 'Europe/Warsaw',
   },
 ];
 
@@ -21,21 +23,23 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const targetDate = req.query.date || todayPoland();
   const results = [];
-
   let accessToken = null;
 
   for (const apt of APARTMENTS) {
     const aptName = apt.name();
     const icalUrl = apt.icalUrl();
     const lockId = apt.lockId();
+    const timezone = apt.timezone();
 
     if (!icalUrl || !lockId) continue;
 
+    // Jeśli date podany w query — użyj go; inaczej "dzisiaj" w strefie apartamentu
+    const targetDate = req.query.date || ymdInTz(new Date(), timezone);
+
     let reservations;
     try {
-      reservations = await getReservationsForDate(icalUrl, targetDate);
+      reservations = await getReservationsForDate(icalUrl, targetDate, timezone);
     } catch (err) {
       console.error(`iCal error [${aptName}]:`, err.message);
       await log({ apartment_name: aptName, error_message: `iCal: ${err.message}` });
@@ -47,27 +51,28 @@ module.exports = async function handler(req, res) {
       try {
         if (!accessToken) accessToken = await getAccessToken();
 
-        const code = await generateCode(accessToken, lockId, r.checkin, r.checkout);
+        const checkinHour = parseInt(process.env.CHECKIN_HOUR || '15');
+        const checkoutHour = parseInt(process.env.CHECKOUT_HOUR || '11');
 
-        const checkinStr = formatDateTime(r.checkin, parseInt(process.env.CHECKIN_HOUR || '15'));
-        const checkoutStr = formatDateTime(r.checkout, parseInt(process.env.CHECKOUT_HOUR || '11'));
+        const code = await generateCode(accessToken, lockId, r.checkin, r.checkout, timezone, checkinHour, checkoutHour);
 
-        const entry = {
+        const checkinStr = `${ymdInTz(r.checkin, timezone)} ${String(checkinHour).padStart(2, '0')}:00`;
+        const checkoutStr = `${ymdInTz(r.checkout, timezone)} ${String(checkoutHour).padStart(2, '0')}:00`;
+
+        results.push({
           apartment: aptName,
           guest: r.guest,
           checkin: checkinStr,
           checkout: checkoutStr,
           code,
-          message: buildMessage(r.guest, code, checkinStr),
-        };
-
-        results.push(entry);
+          message: buildMessage(r.guest, code, checkinHour),
+        });
 
         await log({
           apartment_name: aptName,
           guest_name: r.guest,
-          checkin_date: localYMD(r.checkin),
-          checkout_date: localYMD(r.checkout),
+          checkin_date: ymdInTz(r.checkin, timezone),
+          checkout_date: ymdInTz(r.checkout, timezone),
           generated_code: code,
         });
       } catch (err) {
@@ -85,23 +90,6 @@ module.exports = async function handler(req, res) {
   return res.status(200).json({ reservations: results });
 };
 
-function todayPoland() {
-  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Warsaw' });
-}
-
-function formatDateTime(date, hour) {
-  const d = new Date(date);
-  d.setHours(hour, 0, 0, 0);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(hour)}:00`;
-}
-
-function localYMD(date) {
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function buildMessage(guest, code, checkinStr) {
-  const hour = checkinStr.split(' ')[1];
-  return `Cześć ${guest}! Witamy 😊\nKod do zamka: ${code}\nDziała od godziny ${hour}.\nMiłego pobytu!`;
+function buildMessage(guest, code, checkinHour) {
+  return `Cześć ${guest}! Witamy 😊\nKod do zamka: ${code}\nDziała od godziny ${String(checkinHour).padStart(2, '0')}:00.\nMiłego pobytu!`;
 }

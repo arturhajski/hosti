@@ -1,0 +1,12 @@
+{
+  "name": "hosti",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.0",
+    "node-ical": "^0.20.1"
+  }
+}

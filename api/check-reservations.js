@@ -66,8 +66,8 @@ module.exports = async function handler(req, res) {
         await log({
           apartment_name: aptName,
           guest_name: r.guest,
-          checkin_date: r.checkin.toISOString().slice(0, 10),
-          checkout_date: r.checkout.toISOString().slice(0, 10),
+          checkin_date: localYMD(r.checkin),
+          checkout_date: localYMD(r.checkout),
           generated_code: code,
         });
       } catch (err) {
@@ -94,6 +94,11 @@ function formatDateTime(date, hour) {
   d.setHours(hour, 0, 0, 0);
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(hour)}:00`;
+}
+
+function localYMD(date) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function buildMessage(guest, code, checkinStr) {

@@ -1,6 +1,7 @@
 const { getReservationsForDate } = require('../lib/ical');
 const { getAccessToken, generateCode } = require('../lib/ttlock');
-const { log } = require('../lib/logger');
+// const { log } = require('../lib/logger'); // TODO: włącz gdy Supabase gotowy
+const log = async () => {};
 
 const APARTMENTS = [
   {

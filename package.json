@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "vercel dev"
+    "dev": "vercel dev",
+    "test:ical": "node scripts/test-ical.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",
+    "dotenv": "^16.4.7",
     "node-ical": "^0.20.1"
   }
 }

@@ -1,21 +1,15 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
-const { getReservationsForDate, ymdInTz } = require('../lib/ical');
+const { getReservationsForDate } = require('../lib/ical');
 
 const APARTMENTS = [
-  {
-    name: process.env.APT1_NAME || 'Mieszkanie 1',
-    url: process.env.ICAL_URL_APT1,
-    timezone: process.env.APT1_TIMEZONE || 'Europe/Warsaw',
-  },
-  {
-    name: process.env.APT2_NAME || 'Mieszkanie 2',
-    url: process.env.ICAL_URL_APT2,
-    timezone: process.env.APT2_TIMEZONE || 'Europe/Warsaw',
-  },
+  { name: process.env.APT1_NAME || 'Mieszkanie 1', url: process.env.ICAL_URL_APT1 },
+  { name: process.env.APT2_NAME || 'Mieszkanie 2', url: process.env.ICAL_URL_APT2 },
 ];
 
-const targetDate = process.argv[2] || ymdInTz(new Date(), APARTMENTS[0].timezone);
+// VALUE=DATE jest floating (bez strefy) — używamy strefy lokalnej/serwerowej dla "dzisiaj"
+const timezone = process.env.TIMEZONE || 'Europe/Warsaw';
+const targetDate = process.argv[2] || new Intl.DateTimeFormat('sv-SE', { timeZone: timezone }).format(new Date());
 
 console.log(`\nSprawdzam rezerwacje na: ${targetDate}\n`);
 
@@ -26,16 +20,16 @@ console.log(`\nSprawdzam rezerwacje na: ${targetDate}\n`);
       continue;
     }
 
-    console.log(`[${apt.name}] (${apt.timezone}) Pobieranie kalendarza...`);
+    console.log(`[${apt.name}] Pobieranie kalendarza...`);
     try {
-      const reservations = await getReservationsForDate(apt.url, targetDate, apt.timezone);
+      const reservations = await getReservationsForDate(apt.url, targetDate);
       if (reservations.length === 0) {
         console.log(`  → Brak rezerwacji na ${targetDate}\n`);
       } else {
         for (const r of reservations) {
           console.log(`  → Gość:      ${r.guest}`);
-          console.log(`     Check-in:  ${ymdInTz(r.checkin, apt.timezone)}`);
-          console.log(`     Check-out: ${ymdInTz(r.checkout, apt.timezone)}\n`);
+          console.log(`     Check-in:  ${r.checkin}`);
+          console.log(`     Check-out: ${r.checkout}\n`);
         }
       }
     } catch (err) {
